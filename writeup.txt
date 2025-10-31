@@ -1,0 +1,17 @@
+Here is a step-by-step writeup of how the CTF challenge was solved:
+
+1.  **Initial File Analysis:** The process began by using the `file` command on `a.out`. This identified it as a 64-bit ELF executable, confirming it was a program meant to be run.
+
+2.  **Execution and Error Analysis:** The first attempt to run `./a.out` resulted in a "Permission denied" error. This was resolved by making the file executable with `chmod +x a.out`. The next execution attempt failed with a missing library error: `libpulse.so.0: cannot open shared object file`. The name "libpulse" strongly suggested the program was related to audio, which corroborated the "pitch-perfect voice" hint.
+
+3.  **Static Analysis with `strings`:** Since the program could not be run in the environment, the next step was static analysis. The `strings` command was used to extract any human-readable text from the binary. This revealed functions related to PulseAudio (`pa_simple_read`), complex numbers (`complex_mul`), and custom functions like `bit_flip` and `reverse_bits`. This confirmed the suspicion that the program processed audio signals.
+
+4.  **Disassembly with `objdump`:** To understand the program's core logic, the executable was disassembled using `objdump -d a.out > disassembly.txt`. This provided the assembly code for analysis.
+
+5.  **Decoding the Logic:** A meticulous analysis of the disassembly was performed, focusing on the `main` function and the functions it called. The control flow showed that the program reads audio, processes it in a function named `x` (which performs a Fast Fourier Transform), and then passes the result to a function named `r` for validation.
+
+6.  **Discovering the DTMF Secret:** The `r` function was the key to solving the challenge. It contained a state machine that checked for specific frequency pairs in the processed audio data. By analyzing the constants and comparisons in this function, it was determined that the program was looking for specific DTMF (Dual-Tone Multi-Frequency) tones—the same tones a phone makes when the keypad is pressed.
+
+7.  **Extracting the Code:** The logic within the `r` function's state machine was traced to identify the exact sequence of DTMF tones it expected. The program required a sequence of 9 specific tones to reach the "SUCCESS" state. By mapping the internal keycodes back to a standard DTMF keypad, the required sequence was decoded as: `859687201`.
+
+8.  **Constructing the Flag:** With the code cracked, it was inserted into the format specified by the challenge description to form the final flag: `ZuH4ckN1ght{859687201}`.
