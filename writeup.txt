@@ -1,0 +1,81 @@
+# Keeper Challenge Writeup
+
+This document outlines the step-by-step process used to reverse engineer the `keeper` binary and retrieve the flag.
+
+## Step 1: Initial Reconnaissance
+
+The first step was to understand the nature of the provided file.
+
+1.  **File Type Identification:** I used the `file` command to determine the file type.
+    ```bash
+    file keeper
+    ```
+    The output showed it was a "ELF 64-bit LSB pie executable... not stripped," which is a standard Linux executable. The "not stripped" part was a good sign, meaning that function names and other symbols would be present, making the analysis easier.
+
+2.  **String Extraction:** I used the `strings` command to look for any human-readable text embedded in the binary. This is often the most revealing first step in a reverse engineering challenge.
+    ```bash
+    strings keeper
+    ```
+    This command yielded several crucial clues:
+    *   A potential username: `0n3_W4rM`
+    *   A string that looked like a password: `zLl1ks_d4m_T0g_I`
+    *   The flag format: `ZuH4ckN1ght{%s}`
+    *   Various messages like "ACCESS DENIED", "Incorrect username", and "Correct!", confirming a login-style mechanism.
+
+## Step 2: First Execution Attempt
+
+With a potential username and password, the most straightforward next step was to try them.
+
+1.  **Setting Permissions:** The binary did not have execute permissions by default. I added them using `chmod`.
+    ```bash
+    chmod +x keeper
+    ```
+
+2.  **Running the Program:** I ran the program with the discovered credentials.
+    ```bash
+    ./keeper 0n3_W4rM zLl1ks_d4m_T0g_I
+    ```
+    The program outputted "ACCESS DENIED" and "Incorrect password." This told me that while the username was likely correct, the password `zLl1ks_d4m_T0g_I` was not what the program expected. It was probably a transformed version of the real password.
+
+## Step 3: Static Analysis with Objdump
+
+To understand how the password was being checked, I needed to look at the program's code. I disassembled the binary using `objdump`.
+
+1.  **Disassembly:** I created a text file containing the assembly code of the program.
+    ```bash
+    objdump -d keeper > disassembly.txt
+    ```
+
+2.  **Code Analysis:** I analyzed the `main` function in `disassembly.txt`. I located the call to `strcmp` (string compare), which is where the user's input would be compared to the correct password.
+
+3.  **Discovering the Transformation:** By examining the code block just before the final `strcmp` call (starting around address `0x13d5`), I identified a loop. This loop took the user-provided password, which had been copied into a new memory buffer, and systematically swapped characters from the beginning and the end of the string, moving inwards. This is a classic string reversal algorithm.
+
+## Step 4: The Reversal and the Subtle Bug
+
+The analysis revealed that the password from the `strings` output (`zLl1ks_d4m_T0g_I`) was the *result* of the reversal. To find the correct input password, I needed to reverse it back.
+
+1.  **Manual Reversal Attempt:** My initial manual reversal of the string resulted in `I_g0T_m4d_sk1llZ`. However, running `./keeper 0n3_W4rM I_g0T_m4d_sk1llZ` still failed. This was the trickiest part of the challenge.
+
+2.  **Verification with Code:** To eliminate any manual errors, I wrote, compiled, and ran a simple C program (`reverse.c`) to perform the string reversal automatically.
+    ```bash
+    ./reverse zLl1ks_d4m_T0g_I
+    ```
+    The program's output was `I_g0T_m4d_sk1lLz`.
+
+3.  **Spotting the Error:** Comparing my manual reversal (`...sk1llZ`) with the program's output (`...sk1lLz`), I found a subtle case-sensitivity error. The second-to-last character should have been a lowercase 'l', not a capital 'Z'. The original string `zLl1ks...` has a capital `L` and a lowercase `l`, which determined the casing in the final reversed string.
+
+## Step 5: Final Success
+
+With the corrected password, I made the final attempt.
+
+1.  **Correct Execution:** I ran the `keeper` program with the correct username and the verified, case-corrected password.
+    ```bash
+    ./keeper 0n3_W4rM I_g0T_m4d_sk1lLz
+    ```
+
+2.  **Retrieving the Flag:** This time, the program printed "Correct!" followed by the flag.
+
+## Conclusion
+
+The flag was successfully retrieved by following these steps.
+**Flag: `ZuH4ckN1ght{I_g0T_m4d_sk1lLz}`**
